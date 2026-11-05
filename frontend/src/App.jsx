@@ -44,14 +44,21 @@ function App() {
     event.preventDefault();
     setMessage("Publication en cours...");
     try {
+      const availableUntil = new Date(event.target.availableUntil.value);
+      if (Number.isNaN(availableUntil.getTime())) {
+        throw new Error("Choisissez une date limite valide");
+      }
+
       await createOffering({
         hotelId: Number(event.target.hotelId.value),
         productName: event.target.productName.value,
         quantity: Number(event.target.quantity.value),
         unit: event.target.unit.value,
-        availableUntil: event.target.availableUntil.value,
+        availableUntil: availableUntil.toISOString().slice(0, 19).replace("T", " "),
         description: event.target.description.value,
       });
+      const availableOfferings = await getAvailableOfferings();
+      setOfferings(availableOfferings);
       event.target.reset();
       setMessage("Denrée publiée. Elle est visible par les associations.");
     } catch (error) {
@@ -63,15 +70,10 @@ function App() {
     const associationId = Number(window.prompt("Identifiant de votre association"));
     if (!Number.isInteger(associationId)) return;
     try {
-      const pickupRequest = await requestPickup({ offeringId: offering.id, associationId });
+      await requestPickup({ offeringId: offering.id, associationId });
       setOfferings((current) => current.filter((item) => item.id !== offering.id));
-      setPickupRequests((current) => [...current, {
-        ...pickupRequest,
-        productName: offering.productName,
-        quantity: offering.quantity,
-        unit: offering.unit,
-        hotelName: offering.hotelName,
-      }]);
+      const pendingRequests = await getPendingPickupRequests();
+      setPickupRequests(pendingRequests);
       setMessage("Demande envoyée à l'hôtel.");
     } catch (error) {
       setMessage(error.message);
@@ -95,12 +97,10 @@ function App() {
     const contact = window.prompt("Votre email ou téléphone");
     if (!individualName || !contact) return;
     try {
-      const distributionRequest = await requestDistribution({ offeringId, individualName, contact });
+      await requestDistribution({ offeringId, individualName, contact });
       setDistributions((current) => current.filter((offering) => offering.id !== offeringId));
-      setDistributionRequests((current) => [
-        ...current,
-        { ...distributionRequest, productName: "Denrée demandée" },
-      ]);
+      const pendingRequests = await getPendingDistributionRequests();
+      setDistributionRequests(pendingRequests);
       setMessage("Votre demande de distribution a été envoyée à l'association.");
     } catch (error) {
       setMessage(error.message);
