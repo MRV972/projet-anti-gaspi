@@ -1,206 +1,57 @@
 import { useEffect, useState } from "react";
-import StatusCard from "./components/StatusCard";
 import {
-  checkApiHealth,
-  completePickupRequest,
-  completeDistributionRequest,
-  createOffering,
-  getAvailableOfferings,
-  getDistributableOfferings,
-  getPendingDistributionRequests,
-  getPendingPickupRequests,
-  requestDistribution,
-  requestPickup,
+  completeDistributionRequest, completePickupRequest, createOffering,
+  getAvailableOfferings, getDistributableOfferings, getPendingDistributionRequests,
+  getPendingPickupRequests, getCurrentUser, loginAccount, logoutAccount, registerAccount,
+  requestDistribution, requestPickup,
 } from "./services/api";
 import "./styles.css";
 
-function App() {
-  const [connected, setConnected] = useState(false);
-  const [offerings, setOfferings] = useState([]);
-  const [distributions, setDistributions] = useState([]);
-  const [pickupRequests, setPickupRequests] = useState([]);
-  const [distributionRequests, setDistributionRequests] = useState([]);
+function AuthScreen({ onAuthenticated }) {
+  const [mode, setMode] = useState("login");
+  const [role, setRole] = useState("hotel");
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    Promise.all([
-      checkApiHealth(),
-      getAvailableOfferings(),
-      getDistributableOfferings(),
-      getPendingPickupRequests(),
-      getPendingDistributionRequests(),
-    ])
-      .then(([, availableOfferings, availableDistributions, pendingRequests, pendingDistributionRequests]) => {
-        setConnected(true);
-        setOfferings(availableOfferings);
-        setDistributions(availableDistributions);
-        setPickupRequests(pendingRequests);
-        setDistributionRequests(pendingDistributionRequests);
-      })
-      .catch(() => setConnected(false));
-  }, []);
-
-  async function handleSubmit(event) {
+  async function submit(event) {
     event.preventDefault();
-    setMessage("Publication en cours...");
+    const form = new FormData(event.currentTarget);
+    const account = Object.fromEntries(form.entries());
+    account.entityId = account.entityId ? Number(account.entityId) : undefined;
     try {
-      const availableUntil = new Date(event.target.availableUntil.value);
-      if (Number.isNaN(availableUntil.getTime())) {
-        throw new Error("Choisissez une date limite valide");
-      }
-
-      await createOffering({
-        hotelId: Number(event.target.hotelId.value),
-        productName: event.target.productName.value,
-        quantity: Number(event.target.quantity.value),
-        unit: event.target.unit.value,
-        availableUntil: availableUntil.toISOString().slice(0, 19).replace("T", " "),
-        description: event.target.description.value,
-      });
-      const availableOfferings = await getAvailableOfferings();
-      setOfferings(availableOfferings);
-      event.target.reset();
-      setMessage("Denrée publiée. Elle est visible par les associations.");
-    } catch (error) {
-      setMessage(error.message);
-    }
+      const currentUser = mode === "login" ? await loginAccount(account) : await registerAccount({ ...account, role });
+      onAuthenticated(currentUser);
+    } catch (error) { setMessage(error.message); }
   }
+  return <main className="auth-shell"><section className="auth-panel"><p className="eyebrow">ANTI-GASPI / ESPACE SÉCURISÉ</p><h1>Chaque surplus trouve son chemin.</h1><p className="intro">Connectez-vous à l'espace qui correspond à votre rôle.</p><div className="switcher"><button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Connexion</button><button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Créer un compte</button></div><form onSubmit={submit} className="auth-form">{mode === "register" && <><label>Profil<select value={role} onChange={(event) => setRole(event.target.value)}><option value="hotel">Hôtel</option><option value="association">Association</option><option value="individual">Particulier</option></select></label><label>Nom affiché<input name="displayName" required placeholder="Votre nom ou établissement" /></label>{role !== "individual" && <label>Identifiant métier<input name="entityId" type="number" required placeholder="ID fourni par l'administrateur" /></label>}</>}<label>Email<input name="email" type="email" required placeholder="vous@exemple.fr" /></label><label>Mot de passe<input name="password" type="password" minLength="8" required placeholder="8 caractères minimum" /></label><button className="primary" type="submit">{mode === "login" ? "Ouvrir mon espace" : "Créer mon espace"}</button>{message && <p className="form-message">{message}</p>}</form></section></main>;
+}
 
-  async function handleRequest(offering) {
-    const associationId = Number(window.prompt("Identifiant de votre association"));
-    if (!Number.isInteger(associationId)) return;
-    try {
-      await requestPickup({ offeringId: offering.id, associationId });
-      setOfferings((current) => current.filter((item) => item.id !== offering.id));
-      const pendingRequests = await getPendingPickupRequests();
-      setPickupRequests(pendingRequests);
-      setMessage("Demande envoyée à l'hôtel.");
-    } catch (error) {
-      setMessage(error.message);
-    }
+function List({ title, items, empty, render, action, actionLabel }) {
+  return <section className="panel"><p className="eyebrow">TABLEAU DE BORD</p><h2>{title}</h2>{items.length === 0 ? <p className="muted">{empty}</p> : items.map((item) => <article key={item.id}>{render(item)}<button onClick={() => action(item)}>{actionLabel}</button></article>)}</section>;
+}
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [data, setData] = useState({ offerings: [], distributions: [], pickups: [], requests: [] });
+  const [message, setMessage] = useState("");
+  useEffect(() => { if (localStorage.getItem("anti-gaspi-token")) getCurrentUser().then(setUser).catch(() => localStorage.removeItem("anti-gaspi-token")); }, []);
+  async function refresh() {
+    const result = { ...data };
+    if (user.role === "hotel") result.pickups = await getPendingPickupRequests();
+    if (user.role === "association") { result.offerings = await getAvailableOfferings(); result.requests = await getPendingDistributionRequests(); }
+    if (user.role === "individual") result.distributions = await getDistributableOfferings();
+    setData(result);
   }
-
-  async function handleCompletePickup(requestId) {
-    try {
-      await completePickupRequest(requestId);
-      setPickupRequests((current) => current.filter((request) => request.id !== requestId));
-      const availableDistributions = await getDistributableOfferings();
-      setDistributions(availableDistributions);
-      setMessage("Demande validée par l'hôtel. La denrée est proposée aux particuliers.");
-    } catch (error) {
-      setMessage(error.message);
-    }
+  useEffect(() => { if (user) refresh().catch((error) => setMessage(error.message)); }, [user]);
+  if (!user) return <AuthScreen onAuthenticated={setUser} />;
+  async function action(callback, success) { try { await callback(); await refresh(); setMessage(success); } catch (error) { setMessage(error.message); } }
+  async function publish(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const availableUntil = new Date(form.availableUntil.value);
+    await action(() => createOffering({ productName: form.productName.value, quantity: Number(form.quantity.value), unit: form.unit.value, availableUntil: availableUntil.toISOString().slice(0, 19).replace("T", " "), description: form.description.value }), "Denrée publiée.");
+    form.reset();
   }
-
-  async function handleDistributionRequest(offeringId) {
-    const individualName = window.prompt("Votre nom");
-    const contact = window.prompt("Votre email ou téléphone");
-    if (!individualName || !contact) return;
-    try {
-      await requestDistribution({ offeringId, individualName, contact });
-      setDistributions((current) => current.filter((offering) => offering.id !== offeringId));
-      const pendingRequests = await getPendingDistributionRequests();
-      setDistributionRequests(pendingRequests);
-      setMessage("Votre demande de distribution a été envoyée à l'association.");
-    } catch (error) {
-      setMessage(error.message);
-    }
-  }
-
-  async function handleCompleteDistribution(requestId) {
-    if (!window.confirm("Confirmer que le particulier a bien récupéré cette denrée ?")) return;
-    try {
-      await completeDistributionRequest(requestId);
-      setDistributionRequests((current) => current.filter((request) => request.id !== requestId));
-      setMessage("Retrait confirmé. Merci d'avoir évité le gaspillage alimentaire.");
-    } catch (error) {
-      setMessage(error.message);
-    }
-  }
-
-  return (
-    <main className="app-shell">
-      <div className="hero">
-        <p className="eyebrow">Anti-gaspillage alimentaire</p>
-        <h1>Ensemble, donnons une seconde vie aux invendus.</h1>
-        <p className="intro">
-          Une plateforme qui connecte hôtels, associations et particuliers.
-        </p>
-        <StatusCard connected={connected} />
-        <section className="feature-grid">
-          <form className="status-card" onSubmit={handleSubmit}>
-            <p className="eyebrow">Hôtel</p>
-            <h2>Signaler des denrées</h2>
-            <input name="hotelId" type="number" placeholder="Identifiant hôtel" required />
-            <input name="productName" placeholder="Ex. plats préparés" required />
-            <input name="quantity" type="number" min="0.01" step="0.01" placeholder="Quantité" required />
-            <input name="unit" placeholder="Unité (kg, portions...)" required />
-            <input name="availableUntil" type="datetime-local" required />
-            <textarea name="description" placeholder="Précisions (facultatif)" />
-            <button type="submit">Publier la disponibilité</button>
-            {message && <p>{message}</p>}
-          </form>
-          <section className="status-card">
-            <p className="eyebrow">Association</p>
-            <h2>Denrées disponibles</h2>
-            {offerings.length === 0 ? <p>Aucune denrée disponible pour le moment.</p> : offerings.map((offering) => (
-              <article key={offering.id}>
-                <h3>{offering.productName}</h3>
-                <p>{offering.quantity} {offering.unit} · {offering.hotelName}</p>
-                <button type="button" onClick={() => handleRequest(offering)}>Demander la récupération</button>
-              </article>
-            ))}
-          </section>
-          <section className="status-card">
-            <p className="eyebrow">Association</p>
-            <h2>Retraits à valider</h2>
-            <p>Validez ici la remise de la denrée au particulier.</p>
-            {distributionRequests.length === 0 ? <p>Aucun retrait en attente.</p> : distributionRequests.map((request) => (
-              <article key={request.id}>
-                <h3>{request.productName}</h3>
-                <p>{request.quantity} {request.unit} · Association : {request.associationName}</p>
-                <p><strong>Particulier :</strong> {request.individualName}</p>
-                <p><strong>Contact :</strong> {request.contact}</p>
-                <p className="request-reference">Retrait #{request.id}</p>
-                <button type="button" onClick={() => handleCompleteDistribution(request.id)}>
-                  Valider la remise au particulier
-                </button>
-              </article>
-            ))}
-          </section>
-          <section className="status-card">
-            <p className="eyebrow">Hôtel</p>
-            <h2>Demandes de récupération à valider</h2>
-            <p>Validez les demandes envoyées par les associations pour vos denrées.</p>
-            {pickupRequests.length === 0 ? <p>Aucune demande en attente.</p> : pickupRequests.map((request) => (
-              <article key={request.id}>
-                <h3>{request.productName}</h3>
-                <p>{request.quantity} {request.unit} · Hôtel : {request.hotelName}</p>
-                <p><strong>Association :</strong> {request.associationName}</p>
-                <p className="request-reference">Demande #{request.id}</p>
-                <button type="button" onClick={() => handleCompletePickup(request.id)}>
-                  Valider la demande de récupération
-                </button>
-              </article>
-            ))}
-          </section>
-          <section className="status-card">
-            <p className="eyebrow">Particulier</p>
-            <h2>Distributions proposées</h2>
-            {distributions.length === 0 ? <p>Aucune distribution disponible pour le moment.</p> : distributions.map((offering) => (
-              <article key={offering.id}>
-                <h3>{offering.productName}</h3>
-                <p>{offering.quantity} {offering.unit} · {offering.associationName}</p>
-                <button type="button" onClick={() => handleDistributionRequest(offering.id)}>
-                  Demander cette denrée
-                </button>
-              </article>
-            ))}
-          </section>
-        </section>
-      </div>
-    </main>
-  );
+  const title = user.role === "hotel" ? "Le comptoir des surplus" : user.role === "association" ? "La collecte solidaire" : "Les distributions près de vous";
+  return <main className="app-shell"><header className="topbar"><div><p className="eyebrow">ESPACE {user.role.toUpperCase()}</p><h1>{title}</h1></div><button className="logout" onClick={() => logoutAccount().then(() => setUser(null))}>Se déconnecter</button></header><p className="welcome">Bonjour {user.displayName}. Voici votre activité du jour.</p>{message && <p className="notice">{message}</p>}<section className="dashboard-grid">{user.role === "hotel" && <><form className="panel accent-lime" onSubmit={publish}><p className="eyebrow">NOUVELLE ANNONCE</p><h2>Signaler des invendus</h2><input name="productName" required placeholder="Nom du produit" /><input name="quantity" type="number" min="0.01" step="0.01" required placeholder="Quantité" /><input name="unit" required placeholder="Unité : portions, kg..." /><input name="availableUntil" type="datetime-local" required /><textarea name="description" placeholder="Consignes de retrait (facultatif)" /><button className="primary" type="submit">Publier la disponibilité</button></form><List title="Demandes à valider" items={data.pickups} empty="Aucune demande en attente." action={(item) => action(() => completePickupRequest(item.id), "Récupération confirmée.")} actionLabel="Confirmer la récupération" render={(item) => <><h3>{item.productName}</h3><p>{item.quantity} {item.unit} · {item.associationName}</p></>} /></>}{user.role === "association" && <><List title="Denrées disponibles" items={data.offerings} empty="Aucune denrée disponible." action={(item) => action(() => requestPickup({ offeringId: item.id }), "Demande envoyée à l'hôtel.")} actionLabel="Demander la récupération" render={(item) => <><h3>{item.productName}</h3><p>{item.quantity} {item.unit} · {item.hotelName}</p></>} /><List title="Retraits à valider" items={data.requests} empty="Aucun retrait en attente." action={(item) => action(() => completeDistributionRequest(item.id), "Remise confirmée.")} actionLabel="Valider la remise" render={(item) => <><h3>{item.productName}</h3><p>{item.quantity} {item.unit} · {item.individualName}</p><p>{item.contact}</p></>} /></>}{user.role === "individual" && <List title="Distributions proposées" items={data.distributions} empty="Aucune distribution disponible." action={(item) => action(() => requestDistribution({ offeringId: item.id, contact: user.email }), "Demande envoyée à l'association.")} actionLabel="Demander cette denrée" render={(item) => <><h3>{item.productName}</h3><p>{item.quantity} {item.unit} · {item.associationName}</p></>} />}</section></main>;
 }
 
 export default App;

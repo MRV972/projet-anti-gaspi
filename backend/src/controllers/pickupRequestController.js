@@ -20,10 +20,10 @@ export async function listPendingPickupRequests(_request, response, next) {
 }
 
 export async function createPickupRequest(request, response, next) {
-  const { offeringId, associationId, message = null } = request.body;
+  const { offeringId, message = null } = request.body;
 
-  if (!Number.isInteger(offeringId) || !Number.isInteger(associationId)) {
-    return response.status(400).json({ error: "offeringId et associationId sont obligatoires" });
+  if (!Number.isInteger(offeringId)) {
+    return response.status(400).json({ error: "offeringId est obligatoire" });
   }
 
   let connection;
@@ -43,7 +43,7 @@ export async function createPickupRequest(request, response, next) {
     const result = await connection.query(
       `INSERT INTO pickup_requests (offering_id, association_id, message)
        VALUES (?, ?, ?)`,
-      [offeringId, associationId, message],
+      [offeringId, request.user.entityId, message],
     );
     await connection.query(
       "UPDATE food_offerings SET status = 'requested' WHERE id = ?",
@@ -54,7 +54,7 @@ export async function createPickupRequest(request, response, next) {
       id: Number(result.insertId),
       status: "pending",
       offeringId,
-      associationId,
+      associationId: request.user.entityId,
     });
   } catch (error) {
     if (connection) await connection.rollback();

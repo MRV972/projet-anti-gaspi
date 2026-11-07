@@ -18,9 +18,10 @@ export async function listDistributableOfferings(_request, response, next) {
 }
 
 export async function createDistributionRequest(request, response, next) {
-  const { offeringId, individualName, contact, message = null } = request.body;
+  const { offeringId, contact, message = null } = request.body;
+  const individualName = request.user.displayName;
 
-  if (!Number.isInteger(offeringId) || !individualName?.trim() || !contact?.trim()) {
+  if (!Number.isInteger(offeringId) || !contact?.trim()) {
     return response.status(400).json({
       error: "offeringId, individualName et contact sont obligatoires",
     });
@@ -34,7 +35,7 @@ export async function createDistributionRequest(request, response, next) {
        WHERE EXISTS (
          SELECT 1 FROM food_offerings WHERE id = ? AND status = 'collected'
        )`,
-      [offeringId, individualName.trim(), contact.trim(), message, offeringId],
+      [offeringId, individualName, contact.trim(), message, offeringId],
     );
 
     if (!result.affectedRows) {
@@ -44,7 +45,7 @@ export async function createDistributionRequest(request, response, next) {
     response.status(201).json({
       id: Number(result.insertId),
       offeringId,
-      individualName: individualName.trim(),
+      individualName,
       contact: contact.trim(),
       status: "pending",
     });

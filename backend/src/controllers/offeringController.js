@@ -1,11 +1,11 @@
 import pool from "../config/database.js";
 
 function validateOffering(body) {
-  const { hotelId, productName, quantity, unit, availableUntil } = body;
+  const { productName, quantity, unit, availableUntil } = body;
 
-  if (!Number.isInteger(hotelId) || !productName || !Number.isFinite(Number(quantity)) ||
+  if (!productName || !Number.isFinite(Number(quantity)) ||
       Number(quantity) <= 0 || !unit || !availableUntil) {
-    return "hotelId, productName, quantity, unit et availableUntil sont obligatoires";
+    return "productName, quantity, unit et availableUntil sont obligatoires";
   }
 
   if (Number.isNaN(Date.parse(availableUntil)) || new Date(availableUntil) <= new Date()) {
@@ -40,7 +40,6 @@ export async function createOffering(request, response, next) {
 
   try {
     const {
-      hotelId,
       productName,
       quantity,
       unit,
@@ -51,7 +50,7 @@ export async function createOffering(request, response, next) {
       `INSERT INTO food_offerings
        (hotel_id, product_name, quantity, unit, available_until, description)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [hotelId, productName, quantity, unit, availableUntil, description],
+      [request.user.entityId, productName, quantity, unit, availableUntil, description],
     );
     response.status(201).json({ id: Number(result.insertId), status: "available" });
   } catch (error) {

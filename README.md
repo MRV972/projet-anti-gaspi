@@ -52,7 +52,8 @@ docker compose up -d --build
 
 Si les conteneurs ont déjà été lancés avant l'ajout des tables métier, MariaDB
 ne rejoue pas automatiquement `database/init.sql`. Les tables `hotels`,
-`associations`, `food_offerings` et `pickup_requests` n'existent alors pas encore.
+`associations`, `user_accounts`, `food_offerings` et `pickup_requests` n'existent
+alors pas encore.
 
 Pour appliquer le schéma sans supprimer les données existantes :
 
@@ -78,6 +79,21 @@ docker compose exec database mariadb -uroot -p"local-root-password" anti_gaspill
 Cette procédure est à utiliser lorsque la base contient déjà des données.
 `docker compose down -v` reste réservé à une réinitialisation complète.
 
+## Comptes et espaces par profil
+
+L'application propose trois espaces protégés par session :
+
+- **Hôtel** : publier des denrées et confirmer les demandes de récupération ;
+- **Association** : consulter les denrées, demander une récupération et confirmer
+  la remise au particulier ;
+- **Particulier** : consulter les distributions et demander une denrée.
+
+Depuis l'écran de connexion, choisir **Créer un compte**. Un hôtel ou une
+association doit fournir l'identifiant de son établissement dans la base. Un
+particulier est lié à son nom et à son email. Les mots de passe sont hachés côté
+backend et le jeton de session est conservé dans le navigateur pour restaurer la
+connexion après rechargement.
+
 ## Fonctionnalité disponible : dons des hôtels
 
 Le premier flux métier est disponible :
@@ -92,8 +108,7 @@ Le premier flux métier est disponible :
 
 ### Données de test
 
-L'authentification n'est pas encore implémentée. Pour tester les formulaires, créer
-un hôtel et une association dans MariaDB :
+Pour tester les profils, créer un hôtel et une association dans MariaDB :
 
 ```sql
 INSERT INTO hotels (name) VALUES ('Hôtel des Lumières');
