@@ -27,6 +27,10 @@ export function requireRole(...roles) {
   };
 }
 
+export function requireAdmin(request, response, next) {
+  return requireRole("admin")(request, response, next);
+}
+
 export function removeSession(request) {
   const token = request.headers.authorization?.replace("Bearer ", "");
   if (token) sessions.delete(token);

@@ -29,6 +29,42 @@ Accès :
 - Frontend : <http://localhost:5173>
 - API : <http://localhost:5000/api/health>
 
+### Comptes de démonstration
+
+Le fichier `database/reset-demo.sql` recrée volontairement la base avec des
+comptes de démonstration. Ne l'utilisez pas sur une base contenant des données
+à conserver.
+
+| Profil | Email | Mot de passe |
+|---|---|---|
+| Administrateur | `admin@anti-gaspi.local` | `AdminDemo2026!` |
+| Hôtel | `hotel@anti-gaspi.local` | `HotelDemo2026!` |
+| Association | `association@anti-gaspi.local` | `AssociationDemo2026!` |
+| Particulier | `particulier@anti-gaspi.local` | `IndividualDemo2026!` |
+
+Pour réinitialiser la base avec ces comptes :
+
+```powershell
+Get-Content .\database\reset-demo.sql -Raw |
+  docker compose exec -T database mariadb --default-character-set=utf8mb4 -uroot -p"local-root-password"
+```
+
+L'administrateur se connecte sur <http://localhost:5173>, puis crée une clé
+d'invitation à usage unique pour un hôtel, une association ou un particulier.
+La clé remplace l'ancien identifiant métier saisi manuellement.
+
+Dans son espace, l'administrateur peut également :
+
+- ajouter une association ou un hôtel avec son nom ;
+- supprimer un compte utilisateur ;
+- générer une clé de réinitialisation de mot de passe.
+
+Lors de l'inscription d'un hôtel ou d'une association, le nom est récupéré
+automatiquement depuis l'établissement associé à la clé. Le nom n'est demandé
+que pour un compte particulier. Pour utiliser une clé de réinitialisation,
+cliquer sur **Réinitialiser** sur l'écran de connexion, puis saisir la clé,
+l'email du compte et le nouveau mot de passe.
+
 Voir les logs :
 
 ```powershell
@@ -88,11 +124,11 @@ L'application propose trois espaces protégés par session :
   la remise au particulier ;
 - **Particulier** : consulter les distributions et demander une denrée.
 
-Depuis l'écran de connexion, choisir **Créer un compte**. Un hôtel ou une
-association doit fournir l'identifiant de son établissement dans la base. Un
-particulier est lié à son nom et à son email. Les mots de passe sont hachés côté
-backend et le jeton de session est conservé dans le navigateur pour restaurer la
-connexion après rechargement.
+Depuis l'écran de connexion, choisir **Créer un compte** et saisir la clé
+d'invitation fournie par l'administrateur. La clé indique le profil et, pour un
+hôtel ou une association, l'établissement associé. Chaque clé est à usage
+unique. Les mots de passe sont hachés côté backend et le jeton de session est
+conservé dans le navigateur pour restaurer la connexion après rechargement.
 
 ## Fonctionnalité disponible : dons des hôtels
 
@@ -104,19 +140,22 @@ Le premier flux métier est disponible :
 4. L'hôtel valide la demande de récupération de l'association.
 5. La denrée passe à l'état `collected` et devient disponible pour une distribution.
 6. Un particulier consulte les denrées récupérées et demande une distribution.
-7. L'association valide ensuite la remise de la denrée au particulier.
+7. L'association valide ensuite la remise de la denrée au particulier. Après
+   cette validation, la denrée quitte automatiquement le stock de l'association
+   et n'est plus proposée à un autre particulier.
 
 ### Données de test
 
-Pour tester les profils, créer un hôtel et une association dans MariaDB :
+Pour tester les profils hors réinitialisation, créer un hôtel et une association
+dans MariaDB :
 
 ```sql
 INSERT INTO hotels (name) VALUES ('Hôtel des Lumières');
 INSERT INTO associations (name) VALUES ('Association du Quartier');
 ```
 
-Les identifiants générés sont à saisir dans le formulaire frontend. Le schéma
-fournit également automatiquement une denrée d'exemple :
+L'administrateur doit ensuite créer une clé d'invitation depuis son espace. Le
+schéma fournit également automatiquement une denrée d'exemple :
 
 ```text
 Plateaux-repas végétariens · 12 portions · Hôtel des Lumières

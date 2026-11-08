@@ -6,6 +6,7 @@ import offeringRoutes from "./routes/offeringRoutes.js";
 import pickupRequestRoutes from "./routes/pickupRequestRoutes.js";
 import distributionRoutes from "./routes/distributionRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler.js";
 
 const app = express();
@@ -16,6 +17,7 @@ app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/offerings", offeringRoutes);
 app.use("/api/pickup-requests", pickupRequestRoutes);
 app.use("/api/distributions", distributionRoutes);

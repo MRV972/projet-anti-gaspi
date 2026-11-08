@@ -22,10 +22,38 @@ export async function registerAccount(account) {
   return result.user;
 }
 
+export async function getAdminEntities() {
+  return apiRequest("/api/admin/entities");
+}
+
+export async function createInvitation(invitation) {
+  return apiRequest("/api/admin/invitations", { method: "POST", body: JSON.stringify(invitation) });
+}
+
+export async function createAdminEntity(entity) {
+  return apiRequest("/api/admin/entities", { method: "POST", body: JSON.stringify(entity) });
+}
+
+export async function getAdminAccounts() {
+  return apiRequest("/api/admin/accounts");
+}
+
+export async function deleteAdminAccount(accountId) {
+  return apiRequest(`/api/admin/accounts/${accountId}`, { method: "DELETE" });
+}
+
+export async function createPasswordResetKey(accountId) {
+  return apiRequest(`/api/admin/accounts/${accountId}/reset-key`, { method: "POST" });
+}
+
 export async function loginAccount(credentials) {
   const result = await apiRequest("/api/auth/login", { method: "POST", body: JSON.stringify(credentials) });
   localStorage.setItem("anti-gaspi-token", result.token);
   return result.user;
+}
+
+export async function resetAccountPassword(credentials) {
+  return apiRequest("/api/auth/reset-password", { method: "POST", body: JSON.stringify(credentials) });
 }
 
 export async function logoutAccount() {
@@ -69,6 +97,10 @@ export async function completePickupRequest(requestId) {
 
 export async function getDistributableOfferings() {
   return apiRequest("/api/distributions/offerings");
+}
+
+export async function getAssociationStock() {
+  return apiRequest("/api/distributions/stock");
 }
 
 export async function requestDistribution(request) {

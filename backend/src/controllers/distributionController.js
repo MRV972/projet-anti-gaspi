@@ -9,9 +9,42 @@ export async function listDistributableOfferings(_request, response, next) {
        INNER JOIN pickup_requests p ON p.offering_id = f.id AND p.status = 'completed'
        INNER JOIN associations a ON a.id = p.association_id
        WHERE f.status = 'collected'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM distribution_requests d
+           WHERE d.offering_id = f.id
+         )
        ORDER BY f.created_at DESC`,
     );
     response.json(offerings);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listAssociationStock(request, response, next) {
+  try {
+    const stock = await pool.query(
+      `SELECT f.id, f.product_name AS productName, f.quantity, f.unit,
+              f.available_until AS availableUntil, f.description,
+              h.name AS hotelName
+       FROM food_offerings f
+       INNER JOIN pickup_requests p
+         ON p.offering_id = f.id
+        AND p.association_id = ?
+        AND p.status = 'completed'
+       INNER JOIN hotels h ON h.id = f.hotel_id
+       WHERE f.status = 'collected'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM distribution_requests d
+           WHERE d.offering_id = f.id
+             AND d.status = 'fulfilled'
+         )
+       ORDER BY f.created_at DESC`,
+      [request.user.entityId],
+    );
+    response.json(stock);
   } catch (error) {
     next(error);
   }
@@ -34,8 +67,11 @@ export async function createDistributionRequest(request, response, next) {
        SELECT ?, ?, ?, ?
        WHERE EXISTS (
          SELECT 1 FROM food_offerings WHERE id = ? AND status = 'collected'
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM distribution_requests WHERE offering_id = ?
        )`,
-      [offeringId, individualName, contact.trim(), message, offeringId],
+      [offeringId, individualName, contact.trim(), message, offeringId, offeringId],
     );
 
     if (!result.affectedRows) {
@@ -54,7 +90,7 @@ export async function createDistributionRequest(request, response, next) {
   }
 }
 
-export async function listPendingDistributionRequests(_request, response, next) {
+export async function listPendingDistributionRequests(request, response, next) {
   try {
     const requests = await pool.query(
       `SELECT d.id, d.offering_id AS offeringId,
@@ -66,7 +102,9 @@ export async function listPendingDistributionRequests(_request, response, next) 
        INNER JOIN pickup_requests p ON p.offering_id = f.id AND p.status = 'completed'
        INNER JOIN associations a ON a.id = p.association_id
        WHERE d.status = 'pending'
+         AND p.association_id = ?
        ORDER BY d.created_at ASC`,
+      [request.user.entityId],
     );
     response.json(requests);
   } catch (error) {
@@ -84,8 +122,16 @@ export async function completeDistributionRequest(request, response, next) {
     const result = await pool.query(
       `UPDATE distribution_requests
        SET status = 'fulfilled'
-       WHERE id = ? AND status = 'pending'`,
-      [requestId],
+       WHERE id = ?
+         AND status = 'pending'
+         AND EXISTS (
+           SELECT 1
+           FROM pickup_requests p
+           WHERE p.offering_id = distribution_requests.offering_id
+             AND p.association_id = ?
+             AND p.status = 'completed'
+         )`,
+      [requestId, request.user.entityId],
     );
     if (!result.affectedRows) {
       return response.status(409).json({ error: "Cette demande ne peut pas être confirmée" });

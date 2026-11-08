@@ -1,3 +1,5 @@
+SET NAMES utf8mb4;
+
 CREATE DATABASE IF NOT EXISTS anti_gaspillage
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
@@ -21,9 +23,27 @@ CREATE TABLE IF NOT EXISTS user_accounts (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  role ENUM('hotel', 'association', 'individual') NOT NULL,
+  role ENUM('admin', 'hotel', 'association', 'individual') NOT NULL,
   entity_id INT UNSIGNED NULL,
   display_name VARCHAR(150) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS invitation_keys (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  key_hash CHAR(64) NOT NULL UNIQUE,
+  role ENUM('hotel', 'association', 'individual') NOT NULL,
+  entity_id INT UNSIGNED NULL,
+  created_by INT UNSIGNED NULL,
+  used_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_keys (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  key_hash CHAR(64) NOT NULL UNIQUE,
+  user_id INT UNSIGNED NOT NULL,
+  used_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -60,7 +80,15 @@ CREATE TABLE IF NOT EXISTS distribution_requests (
   contact VARCHAR(150) NOT NULL,
   message TEXT NULL,
   status ENUM('pending', 'fulfilled', 'cancelled') NOT NULL DEFAULT 'pending',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO user_accounts (email, password_hash, role, entity_id, display_name)
+SELECT 'admin@anti-gaspi.local',
+       '83c2f20c151813e17a72bc9e406ed26a:5a901fbb34ef9c8ba98c6771197088e2fbde217d631345cbaa196fdd2e3eb1170a5ef3c6750326083ca6a5fde36f8510d65a5e58ac371db738a5680d4dce4c5d',
+       'admin', NULL, 'Administrateur'
+WHERE NOT EXISTS (
+  SELECT 1 FROM user_accounts WHERE email = 'admin@anti-gaspi.local',
   CONSTRAINT fk_distribution_offering FOREIGN KEY (offering_id) REFERENCES food_offerings(id),
   INDEX idx_distribution_status (offering_id, status)
 );
