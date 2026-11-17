@@ -88,9 +88,7 @@ SELECT 'admin@anti-gaspi.local',
        '83c2f20c151813e17a72bc9e406ed26a:5a901fbb34ef9c8ba98c6771197088e2fbde217d631345cbaa196fdd2e3eb1170a5ef3c6750326083ca6a5fde36f8510d65a5e58ac371db738a5680d4dce4c5d',
        'admin', NULL, 'Administrateur'
 WHERE NOT EXISTS (
-  SELECT 1 FROM user_accounts WHERE email = 'admin@anti-gaspi.local',
-  CONSTRAINT fk_distribution_offering FOREIGN KEY (offering_id) REFERENCES food_offerings(id),
-  INDEX idx_distribution_status (offering_id, status)
+  SELECT 1 FROM user_accounts WHERE email = 'admin@anti-gaspi.local'
 );
 
 INSERT INTO hotels (name)
